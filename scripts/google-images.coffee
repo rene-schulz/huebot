@@ -27,6 +27,21 @@ module.exports = (robot) ->
       imageMe msg, imagery, false, true, (url) ->
         msg.send "#{mustachify}#{url}"
 
+  robot.respond /make @?([\w .\-_]+) a dr[a,i]nk$/i, (msg) ->
+    name = msg.match[1].trim()
+    if name == 'me'
+      msg.send "Here you go!"
+    else
+      users = robot.brain.usersForFuzzyName(name)
+      if users.length is 1
+        user = users[0]
+        name = "Have a drink @#{user.name}!"
+      else
+        name = "Have a drink #{name}!"
+
+    imageMe msg, 'drink', (url) ->
+      msg.send url
+
 imageMe = (msg, query, animated, faces, cb) ->
   cb = animated if typeof animated == 'function'
   cb = faces if typeof faces == 'function'
