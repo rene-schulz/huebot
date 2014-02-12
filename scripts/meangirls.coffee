@@ -20,7 +20,6 @@ gifs = [
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_mqe4reyh5b1s59ot0o1_500.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/mean-girls-movie-quotes-63.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_m6e0yzqopn1rys4czo1_500.gif",
-  "Mean-Girls-GIF",
   "http://thoughtcatalog.files.wordpress.com/2013/08/mean-girls-gif-cady-heron-lindsay-lohan-falls-in-trash-can1.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_m1pzoovbqk1qfxq87o1_500.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_inline_mqtwtnotnw1qz4rgp.gif",
