@@ -31,7 +31,6 @@ gifs = [
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_m1it4db86j1rn95k2o1_500.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/mean-girls-movie-quotes-50-1.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/mean-girls-movie-quotes-46.gif",
-  "picgif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/picgifs-mean-girls-621550.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_m97qaucari1rbw6bto1_500.gif",
   "http://thoughtcatalog.files.wordpress.com/2013/08/tumblr_md2k35kh3h1ro2d43.gif",
