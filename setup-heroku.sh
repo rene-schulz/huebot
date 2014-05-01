@@ -31,6 +31,8 @@ if [[ -z $HUBOT_HIPCHAT_ROOMS ]]; then goof "Enter valid hubot hipchat rooms." f
 heroku config:add HUBOT_HIPCHAT_ROOMS=$HUBOT_HIPCHAT_ROOMS
 
 
+# 67748_idlerpg@conf.hipchat.com
+
 # heroku create --stack cedar
 # git push heroku master
 # heroku ps:scale app=1
