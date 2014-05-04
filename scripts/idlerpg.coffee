@@ -106,7 +106,21 @@ module.exports = (robot) ->
         return Math.floor( (new Date()).getTime() / 1000)
 
     time_for_next_level = (level) ->
-        return 600 * Math.pow(1.16, level)
+        return Math.floor(600 * Math.pow(1.16, level))
+
+    set_time = (userid, time) ->
+        robot.logger.info("Setting time remaining for #{userid} to #{time}")
+
+        idlerpg = robot.brain.get('idlerpg') or {}
+        if ! idlerpg[userid]?
+            throw new Error("User #{userid} is not registered.")
+
+        idlerpg[userid]['remaining'] = time
+        robot.brain.set('idlerpg', idlerpg)
+
+    announce = (message) ->
+        robot.logger.info("Announcing: #{message}")
+        robot.send("#{ORGANIZATION_ID}_#{IDLERPG_ROOM}@conf.hipchat.com", message)
 
     level_up = (userid) ->
         robot.logger.info("Leveling #{userid} up!")
@@ -121,8 +135,8 @@ module.exports = (robot) ->
             return
         idlerpg[userid]['level'] += 1
         idlerpg[userid]['remaining'] = time_for_next_level(idlerpg[userid]['level']) + idlerpg[userid]['remaining']
-        # TODO announce to room
-        robot.logger.info "User ${idlerpg[userid]['username']} is now level #{idlerpg[userid]['level']}"
+
+        announce("User #{idlerpg[userid]['name']} the #{idlerpg[userid]['charclass']} is now level #{idlerpg[userid]['level']}! #{idlerpg[userid]['remaining']} seconds until next level.")
 
         search_for_item(userid)
 
@@ -189,6 +203,8 @@ module.exports = (robot) ->
             robot.logger.info("User #{userid} is not yet registered.")
             return robot.send( { user: userid }, "You have not registered yet." )
 
+        announce("User #{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']} is now logged in! #{idlerpg[userid]['remaining']} seconds until next level.")
+
         idlerpg[userid]['logged_in'] = true
         robot.brain.set('idlerpg', idlerpg)
 
@@ -208,6 +224,10 @@ module.exports = (robot) ->
             return robot.send( { user: userid }, "You are not logged in." )
 
         idlerpg[userid]['logged_in'] = false
+
+        announce("User #{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']} is now logged out!")
+        # TODO penalty
+
         robot.brain.set('idlerpg', idlerpg)
 
     ####################
@@ -240,12 +260,12 @@ module.exports = (robot) ->
     robot.enter (msg) ->
         return unless in_room(msg)
         userid = msg.envelope.user.jid
-        username = msg.envelope.user.name
+        name = msg.envelope.user.name
 
     robot.leave (msg) ->
         return unless in_room(msg)
         userid = msg.envelope.user.jid
-        username = msg.envelope.user.name
+        name = msg.envelope.user.name
         # TODO - penalize user, and log them out
 
     # Admin commands
@@ -264,7 +284,14 @@ module.exports = (robot) ->
             robot.logger.info("Admin stopping game.")
             clearTimeout(LOOP_TIMEOUT)
 
-
+    robot.hear /IDLERPG SET TIME ([^ ]+) (\d+)/i, (msg) ->
+        if is_private(msg) and is_admin(msg)
+            robot.logger.info("Admin setting remaining time for user #{msg.match[1]} to #{msg.match[2]}.")
+            try
+                set_time(msg.match[1], msg.match[2])
+            catch error
+                robot.logger.error("Unable to set remaining time: " + error)
+                msg.send error
 
     ####################
     # Robot interactions
