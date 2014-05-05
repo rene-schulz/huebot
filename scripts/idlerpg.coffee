@@ -10,16 +10,7 @@
 # TODO:
 #   - listen to privmsg for registration - only class is required
 #
-#   - when launching, log everyone out
-#
 #   - how do I detect quits, vs. parts?
-#
-#   - leveling! 600*(1.16^YOUR_LEVEL)
-#   - penalties!
-#       - Part       200*(1.14^(YOUR_LEVEL))
-#       - Quit       20*(1.14^(YOUR_LEVEL))
-#       - LOGOUT     20*(1.14^(YOUR_LEVEL))
-#       - Talk/emote [message_length]*(1.14^(YOUR_LEVEL))
 #
 #   - items!
 #       - random(0, 1.5*LEVEL)
@@ -42,6 +33,7 @@ Util = require "util"
 ORGANIZATION_ID = process.env.ORGANIZATION_ID or "67748"
 IDLERPG_ROOM = process.env.IDLERPG_ROOM or "idlerpg"
 
+PLAYING = false
 LOOP_INTERVAL = 10
 LOOP_TIMEOUT = undefined
 LAST_TIMESTAMP = undefined
@@ -125,14 +117,20 @@ module.exports = (robot) ->
         return Math.floor(600 * Math.pow(1.16, level))
 
     time_for_penalty = (penalty, level, message) ->
-        switch penalty.toLowerCase()
-            when "part"   then Math.floor(200 * Math.pow(1.14, level))
-            when "quit"   then Math.floor(20 * Math.pow(1.14, level))
-            when "logout" then Math.floor(20 * Math.pow(1.14, level))
-            when "talk"   then Math.floor(message.length * Math.pow(1.14, level))
-            else
-                robot.logger.error("Invalid penalty #{penalty}")
-                return 0
+        robot.logger.debug("time_for_penalty(#{penalty}, #{level}, #{message})")
+        time = 0
+        try
+            switch penalty.toLowerCase()
+                when "part"   then time = Math.floor(200 * Math.pow(1.14, parseInt(level)))
+                when "quit"   then time = Math.floor(20 * Math.pow(1.14, parseInt(level)))
+                when "logout" then time = Math.floor(20 * Math.pow(1.14, parseInt(level)))
+                when "talk"   then time = Math.floor(message.length * Math.pow(1.14, parseInt(level)))
+                else               robot.logger.error("Invalid penalty #{penalty}")
+        catch error
+            robot.logger.error("Unable to determine penalty: ", error)
+        robot.logger.debug("Penalty is #{penalty}")
+        return time
+
 
     set_time = (userid, time) ->
         robot.logger.info("Setting time remaining for #{userid} to #{time}")
@@ -168,6 +166,7 @@ module.exports = (robot) ->
         search_for_item(userid)
 
     penalize = (userid, time, reason) ->
+        robot.logger.info("Penalizing #{userid} with #{time} for #{reason}")
         idlerpg = robot.brain.get('idlerpg') or {}
         idlerpg[userid]['remaining'] += time
         robot.brain.set('idlerpg', idlerpg)
@@ -228,9 +227,9 @@ module.exports = (robot) ->
         robot.brain.set('idlerpg', idlerpg)
 
     login = (msg) ->
-        idlerpg = robot.brain.get('idlerpg') or {}
-
         userid = msg.message.user.jid
+
+        idlerpg = robot.brain.get('idlerpg') or {}
 
         robot.logger.info("User #{userid} logging in.")
 
@@ -238,7 +237,12 @@ module.exports = (robot) ->
             robot.logger.info("User #{userid} is not yet registered.")
             return robot.send( { user: userid }, "You have not registered yet." )
 
-        announce("User #{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']} is now logged in! #{idlerpg[userid]['remaining']} seconds until next level.")
+        unless ! idlerpg[userid]['logged_in']
+            robot.logger.info("User #{userid} is already in.")
+            return robot.send( { user: userid }, "You are already logged in." )
+
+        title = get_user_level_title(userid)
+        announce("#{title} is now logged in! #{idlerpg[userid]['remaining']} seconds until next level.")
 
         idlerpg[userid]['logged_in'] = true
         robot.brain.set('idlerpg', idlerpg)
@@ -246,7 +250,7 @@ module.exports = (robot) ->
     logout = (msg) ->
         idlerpg = robot.brain.get('idlerpg') or {}
 
-        userid = msg.message?.user?.jid? or msg
+        userid = msg.message?.user?.jid or msg
 
         robot.logger.info("User #{userid} logging out.")
 
@@ -261,8 +265,6 @@ module.exports = (robot) ->
         penalize(userid, time_for_penalty("logout", idlerpg[userid]['level']), "User logged out.")
         idlerpg[userid]['logged_in'] = false
         robot.brain.set('idlerpg', idlerpg)
-
-        announce("User #{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']} is now logged out!")
 
     ####################
     # Robot interactions
@@ -289,19 +291,23 @@ module.exports = (robot) ->
         is_private(msg) and register msg
 
     robot.hear /(.*)/, (msg) ->
-        return unless in_room(msg)
+        return unless PLAYING and in_room(msg)
+        # Valid commands do not count
+        return if msg.message.text.match(/^(HELP|LOGIN|LOGOUT|REGISTER)/i)
         userid = msg.envelope.user.jid
         idlerpg = robot.brain.get('idlerpg') or {}
+        # Non-players and logged-out players don't count
         return unless idlerpg[userid]?
         return unless idlerpg[userid]['logged_in']
-        penalize(userid, time_for_penalty("talk", idlerpg[userid]['level']), "Talking is not idling!")
+        # Penalize user
+        penalize(userid, time_for_penalty("talk", idlerpg[userid]['level'], msg.message.text), "Talking is not idling!")
 
     robot.enter (msg) ->
         return unless in_room(msg)
         userid = msg.envelope.user.jid
 
     robot.leave (msg) ->
-        return unless in_room(msg)
+        return unless PLAYING and in_room(msg)
         userid = msg.envelope.user.jid
         idlerpg = robot.brain.get('idlerpg') or {}
         return unless idlerpg[userid]?
@@ -310,21 +316,24 @@ module.exports = (robot) ->
         penalize(userid, time_for_penalty("part", idlerpg[userid]['level']), "User left the room.")
         logout(userid)
 
+    ####################
     # Admin commands
+    ####################
     robot.hear /IDLERPG DATA/i, (msg) ->
-        if is_private(msg) and is_admin(msg)
-            idlerpg = robot.brain.get('idlerpg') or {}
-            robot.send( { user: msg.message.user.jid }, Util.inspect(idlerpg) )
+        return unless is_private(msg) and is_admin(msg)
+        idlerpg = robot.brain.get('idlerpg') or {}
+        robot.send( { user: msg.message.user.jid }, Util.inspect(idlerpg) )
 
     robot.hear /IDLERPG START/i, (msg) ->
-        if is_private(msg) and is_admin(msg)
-            robot.logger.info("Admin starting game.")
-            start_loop()
+        return unless is_private(msg) and is_admin(msg)
+        robot.logger.info("Admin starting game.")
+        start_loop()
 
     robot.hear /IDLERPG STOP/i, (msg) ->
-        if is_private(msg) and is_admin(msg)
-            robot.logger.info("Admin stopping game.")
-            clearTimeout(LOOP_TIMEOUT)
+        return unless is_private(msg) and is_admin(msg)
+        robot.logger.info("Admin stopping game.")
+        clearTimeout(LOOP_TIMEOUT)
+        PLAYING = false
 
     robot.hear /IDLERPG SET TIME ([^ ]+) (\d+)/i, (msg) ->
         if is_private(msg) and is_admin(msg)
@@ -340,8 +349,16 @@ module.exports = (robot) ->
     ####################
 
     start_loop = () ->
+        if PLAYING
+            robot.logger.debug("Already playing, not starting again.")
+            return
+
+        PLAYING = true
         LAST_TIMESTAMP = get_timestamp()
+
+        announce("Starting IdleRPG! Everyone, please register or login. Type 'HELP' for help.")
         robot.logger.info "Starting idleRPG at #{LAST_TIMESTAMP}"
+
         do_loop()
 
     do_loop = () ->
