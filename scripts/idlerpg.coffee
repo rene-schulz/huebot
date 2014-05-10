@@ -224,6 +224,7 @@ module.exports = (robot) ->
 
     # Unlike IdleRPG, users *always* have 100% chance of battle
     battle = (userid) ->
+        # TODO - how do I test this, without multiple users?
         idlerpg = robot.brain.get('idlerpg') or {}
 
         # Pick an online player to battle
