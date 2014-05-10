@@ -144,6 +144,16 @@ module.exports = (robot) ->
         idlerpg[userid]['remaining'] = time
         robot.brain.set('idlerpg', idlerpg)
 
+    set_level = (userid, level) ->
+        robot.logger.info("Setting level for #{userid} to #{level}")
+
+        idlerpg = robot.brain.get('idlerpg') or {}
+        if ! idlerpg[userid]?
+            throw new Error("User #{userid} is not registered.")
+
+        idlerpg[userid]['level'] = level
+        robot.brain.set('idlerpg', idlerpg)
+
     announce = (message) ->
         robot.logger.info("Announcing: #{message}")
         robot.send("#{ORGANIZATION_ID}_#{IDLERPG_ROOM}@conf.hipchat.com", message)
@@ -155,6 +165,9 @@ module.exports = (robot) ->
 
         if ! idlerpg[userid]?
             robot.logger.error "User #{userid} is not registered."
+            return
+        if ! idlerpg[userid]['logged_in']
+            robot.logger.error "User #{userid} is not logged in."
             return
         if idlerpg[userid]['remaining'] > 0
             robot.logger.error "User #{userid} still has #{idlerpg[userid]['remaining']} seconds left"
@@ -339,18 +352,37 @@ module.exports = (robot) ->
         PLAYING = false
 
     robot.hear /IDLERPG SET TIME ([^ ]+) (\d+)/i, (msg) ->
+        user = msg.match[1]
+        time = parseInt(msg.match[2])
         if is_private(msg) and is_admin(msg)
-            robot.logger.info("Admin setting remaining time for user #{msg.match[1]} to #{msg.match[2]}.")
+            robot.logger.info("Admin setting remaining time for user #{user} to #{time}.")
             try
                 # Find the user
-                users = robot.brain.usersForFuzzyName(msg.match[1])
+                users = robot.brain.usersForFuzzyName(user)
                 if users.length == 0
-                    throw new Error("No users found for #{msg.match[1]}")
+                    throw new Error("No users found for #{user}")
                 else if users.length > 1
-                    throw new Error("Multiple users matched #{msg.match[1]}, please be more specific")
-                set_time(users[0].jid, msg.match[2])
+                    throw new Error("Multiple users matched #{user}, please be more specific")
+                set_time(users[0].jid, time)
             catch error
                 robot.logger.error("Unable to set remaining time: " + error)
+                msg.send error
+
+    robot.hear /IDLERPG SET LEVEL ([^ ]+) (\d+)/i, (msg) ->
+        user = msg.match[1]
+        level = parseInt(msg.match[2])
+        if is_private(msg) and is_admin(msg)
+            robot.logger.info("Admin setting level for user #{user} to #{level}.")
+            try
+                # Find the user
+                users = robot.brain.usersForFuzzyName(user)
+                if users.length == 0
+                    throw new Error("No users found for #{user}")
+                else if users.length > 1
+                    throw new Error("Multiple users matched #{user}, please be more specific")
+                set_level(users[0].jid, level)
+            catch error
+                robot.logger.error("Unable to set level: " + error)
                 msg.send error
 
     ####################
