@@ -45,9 +45,9 @@ ADMINS = [
     '67748_476250@chat.hipchat.com' # Pavel
 ]
 
+# "hoverboard",
 ITEM_TYPES = [
-    "sword", "shield", "helmet",
-    "keyboard", "mouse", "laptop", "monitor"
+    "phaser", "lightsaber", "proton pack", "wristamajig", "basilisk gun"
 ]
 
 LEGENDARY_ITEMS = [
@@ -114,6 +114,8 @@ module.exports = (robot) ->
 
         return "#{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']}"
 
+    get_random_item_type = () ->
+        return ITEM_TYPES[ Math.floor(Math.random() * ITEM_TYPES.length) ]
 
     time_for_next_level = (level) ->
         return Math.floor(600 * Math.pow(1.16, level))
@@ -178,7 +180,11 @@ module.exports = (robot) ->
         title = get_user_title(userid)
         announce("#{title} is now level #{idlerpg[userid]['level']}! #{idlerpg[userid]['remaining']} seconds until next level.")
 
-        search_for_item(userid)
+        try
+            search_for_item(userid)
+        catch error
+            robot.logger.error("Unable to search for items: " + error)
+            announce("#{title} was prevented from searching for items by a Wizard! (search_for_item threw an error.)")
 
     penalize = (userid, time, reason) ->
         robot.logger.info("Penalizing #{userid} with #{time} for #{reason}")
@@ -191,16 +197,30 @@ module.exports = (robot) ->
 
     search_for_item = (userid) ->
         idlerpg = robot.brain.get('idlerpg') or {}
-        if ! idlerpg[userid]?
-            robot.logger.error "User #{userid} is not registered."
-            return
 
-        # Items not yet implemented
-        robot.logger.info "Items not yet implemented"
+        for level in [idlerpg[userid]['level']..1]
+            randomval = Math.random()
+            targetval = 1 / Math.pow(1.14, level)
+            robot.logger.debug("Rolling for level #{level} item: #{randomval} < #{targetval}")
+            if randomval < targetval
+                # Level #{level} item found
+                itemtype = get_random_item_type()
+                title = get_user_level_title(userid)
+
+                if ! idlerpg[userid]['items'][itemtype]?
+                    idlerpg[userid]['items'][itemtype] = level
+                    announce("#{title} has found a level #{level} #{itemtype}!")
+                else
+                    oldlevel = idlerpg[userid]['items'][itemtype]
+                    if oldlevel < level
+                        idlerpg[userid]['items'][itemtype] = level
+                        announce("#{title} has found a level #{level} #{itemtype}, replacing their crummy old level #{oldlevel} #{itemtype}!")
+                    else
+                        announce("#{title} has found a level #{level} #{itemtype}, but it's not as good as their #{oldlevel} #{itemtype}. Oh well.")
+                return
+
+        announce("#{title} was not lucky enough to find any items today.")
         return
-
-        # TODO - if item found, announce to room
-
 
     ####################
     # Interaction functions
@@ -415,7 +435,11 @@ module.exports = (robot) ->
                 robot.logger.debug "Set #{user.name} #{user.userid} time from #{user.remaining} to", (user.remaining - interval_passed)
                 user.remaining -= interval_passed
                 if user.remaining <= 0
-                    level_up(user.userid)
+                    try
+                        level_up(user.userid)
+                    catch error
+                        robot.logger.error("Unable to level_up: " + error)
+                        announce("#{title} was prevented from leveling up by a Wizard! (search_for_item threw an error.)")
 
         #TODO Global events?
 
