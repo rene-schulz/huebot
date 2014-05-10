@@ -10,6 +10,8 @@
 # TODO:
 #   - listen to privmsg for registration - only class is required
 #
+#   - need a STATUS command
+#
 #   - how do I detect quits, vs. parts?
 #
 #   - items!
@@ -307,14 +309,15 @@ module.exports = (robot) ->
         userid = msg.envelope.user.jid
 
     robot.leave (msg) ->
+        # TODO - this does not work! Function never seems to fire.
         return unless PLAYING and in_room(msg)
         userid = msg.envelope.user.jid
         idlerpg = robot.brain.get('idlerpg') or {}
         return unless idlerpg[userid]?
         return unless idlerpg[userid]['logged_in']
-
         penalize(userid, time_for_penalty("part", idlerpg[userid]['level']), "User left the room.")
         logout(userid)
+
 
     ####################
     # Admin commands
@@ -339,7 +342,13 @@ module.exports = (robot) ->
         if is_private(msg) and is_admin(msg)
             robot.logger.info("Admin setting remaining time for user #{msg.match[1]} to #{msg.match[2]}.")
             try
-                set_time(msg.match[1], msg.match[2])
+                # Find the user
+                users = robot.brain.usersForFuzzyName(msg.match[1])
+                if users.length == 0
+                    throw new Error("No users found for #{msg.match[1]}")
+                else if users.length > 1
+                    throw new Error("Multiple users matched #{msg.match[1]}, please be more specific")
+                set_time(users[0].jid, msg.match[2])
             catch error
                 robot.logger.error("Unable to set remaining time: " + error)
                 msg.send error
@@ -373,7 +382,7 @@ module.exports = (robot) ->
             unless not user.logged_in
                 robot.logger.debug "Set #{user.name} #{user.userid} time from #{user.remaining} to", (user.remaining - interval_passed)
                 user.remaining -= interval_passed
-                if user.remaining < 0
+                if user.remaining <= 0
                     level_up(user.userid)
 
         #TODO Global events?
