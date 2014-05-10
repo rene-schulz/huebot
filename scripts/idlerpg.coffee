@@ -9,22 +9,11 @@
 #
 # TODO:
 #   - listen to privmsg for registration - only class is required
-#
+#   - leaving the room would penalize user twice (once for leaving, once for logging out)
 #   - need a STATUS command
-#
 #   - how do I detect quits, vs. parts?
 #
-#   - items!
-#       - random(0, 1.5*LEVEL)
-#       - legendary items!
-#           - Norton's +( random(LEVEL, 2*LEVEL) ) DOGECOIN
-#           - Alain's +( random(LEVEL, 2*LEVEL) ) ACCENT
-#       - idlerpg formula:
-#         for each 'number' from 1 to YOUR_LEVEL*1.5
-#           you have a 1 / ((1.4)^number) chance to find an item at this level
-#         end for
-#
-#   - dueling!
+#   - pretty-print remaining time
 #
 #   - alignments
 #    - punish for switching too often?
@@ -48,11 +37,6 @@ ADMINS = [
 # "hoverboard",
 ITEM_TYPES = [
     "phaser", "lightsaber", "proton pack", "wristamajig", "basilisk gun"
-]
-
-LEGENDARY_ITEMS = [
-    "Norton's Dogecoin",
-    "Alain's Accent"
 ]
 
 HELP_TEXT = """
@@ -114,8 +98,16 @@ module.exports = (robot) ->
 
         return "#{idlerpg[userid]['name']} the level #{idlerpg[userid]['level']} #{idlerpg[userid]['charclass']}"
 
-    get_random_item_type = () ->
-        return ITEM_TYPES[ Math.floor(Math.random() * ITEM_TYPES.length) ]
+    get_random_item = (array) ->
+        return array[ Math.floor(Math.random() * array.length) ]
+
+    get_battle_sum = (userid) ->
+        idlerpg = robot.brain.get('idlerpg') or {}
+
+        level = idlerpg[userid]['level']
+        values = for item_type, item_value of idlerpg[userid]['items']
+            item_value
+        return parseInt(level) + parseInt(values.reduce( ((prev, cur) -> return prev + cur), 0))
 
     time_for_next_level = (level) ->
         return Math.floor(600 * Math.pow(1.16, level))
@@ -186,14 +178,22 @@ module.exports = (robot) ->
             robot.logger.error("Unable to search for items: " + error)
             announce("#{title} was prevented from searching for items by a Wizard! (search_for_item threw an error.)")
 
+        try
+            battle(userid)
+        catch error
+            robot.logger.error("Unable to battle: " + error)
+
     penalize = (userid, time, reason) ->
-        robot.logger.info("Penalizing #{userid} with #{time} for #{reason}")
+        robot.logger.info("Penalized #{userid} with #{time} seconds: #{reason}")
         idlerpg = robot.brain.get('idlerpg') or {}
         idlerpg[userid]['remaining'] += time
         robot.brain.set('idlerpg', idlerpg)
 
-        title = get_user_level_title(userid)
-        announce("#{title} was penalized #{time} seconds: #{reason}")
+    reward = (userid, time, reason) ->
+        robot.logger.info("Rewarded #{userid} with #{time} seconds: #{reason}")
+        idlerpg = robot.brain.get('idlerpg') or {}
+        idlerpg[userid]['remaining'] -= time
+        robot.brain.set('idlerpg', idlerpg)
 
     search_for_item = (userid) ->
         idlerpg = robot.brain.get('idlerpg') or {}
@@ -204,7 +204,7 @@ module.exports = (robot) ->
             robot.logger.debug("Rolling for level #{level} item: #{randomval} < #{targetval}")
             if randomval < targetval
                 # Level #{level} item found
-                itemtype = get_random_item_type()
+                itemtype = get_random_item(ITEM_TYPES)
                 title = get_user_level_title(userid)
 
                 if ! idlerpg[userid]['items'][itemtype]?
@@ -221,6 +221,34 @@ module.exports = (robot) ->
 
         announce("#{title} was not lucky enough to find any items today.")
         return
+
+    # Unlike IdleRPG, users *always* have 100% chance of battle
+    battle = (userid) ->
+        idlerpg = robot.brain.get('idlerpg') or {}
+
+        # Pick an online player to battle
+        logged_in_users = for uid, user of idlerpg when user['logged_in'] == true and user['userid'] != userid
+            user
+        if logged_in_users.length == 0
+            robot.logger.debug("No online users to battle.")
+            return
+        battle_target = get_random_item(logged_in_users)
+
+        [ my_sum, their_sum ] = [ get_battle_sum(userid), get_battle_sum(battle_target['userid']) ]
+        [ my_roll, their_roll ] = [ Math.random(), Math.random() ]
+        [ my_score, their_score ] = [ my_sum * my_roll, their_sum * their_roll ]
+
+        my_title = get_user_title(userid)
+        their_title = get_user_title(battle_target['userid'])
+
+        if my_score < their_score
+            loss = their_roll * idlerpg[userid]['remaining']
+            penalize(userid, loss, "Lost battle against #{battle_target['userid']}")
+            announce("#{my_title} has challenged #{their_title} to battle, and lost! #{loss} seconds added to the clock. (#{my_score}/#{my_sum} vs #{their_score}/#{their_sum})")
+        else
+            gain = my_roll * idlerpg[userid]['remaining']
+            reward(userid, loss, "Won battle against #{battle_target['userid']}")
+            announce("#{my_title} has challenged #{their_title} to battle, and won! #{gain} seconds removed from the clock. (#{my_score}/#{my_sum} vs #{their_score}/#{their_sum})")
 
     ####################
     # Interaction functions
@@ -298,6 +326,9 @@ module.exports = (robot) ->
             return robot.send( { user: userid }, "You are not logged in." )
 
         penalize(userid, time_for_penalty("logout", idlerpg[userid]['level']), "User logged out.")
+        title = get_user_level_title(userid)
+        announce("#{title} logged out, and had #{time} seconds added to their clock.")
+
         idlerpg[userid]['logged_in'] = false
         robot.brain.set('idlerpg', idlerpg)
 
@@ -334,8 +365,10 @@ module.exports = (robot) ->
         # Non-players and logged-out players don't count
         return unless idlerpg[userid]?
         return unless idlerpg[userid]['logged_in']
-        # Penalize user
+
         penalize(userid, time_for_penalty("talk", idlerpg[userid]['level'], msg.message.text), "Talking is not idling!")
+        title = get_user_level_title(userid)
+        announce("No talking, #{title}! #{time} seconds have been added to your clock.")
 
     robot.enter (msg) ->
         return unless in_room(msg)
@@ -348,7 +381,10 @@ module.exports = (robot) ->
         idlerpg = robot.brain.get('idlerpg') or {}
         return unless idlerpg[userid]?
         return unless idlerpg[userid]['logged_in']
+
         penalize(userid, time_for_penalty("part", idlerpg[userid]['level']), "User left the room.")
+        title = get_user_level_title(userid)
+        announce("#{title} left the room, and had #{time} seconds added to their clock, in addition to being logged out.")
         logout(userid)
 
 
