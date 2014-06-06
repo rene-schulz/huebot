@@ -30,13 +30,20 @@ read -p "Enter hubot hipchat rooms:" HUBOT_HIPCHAT_ROOMS
 if [[ -z $HUBOT_HIPCHAT_ROOMS ]]; then goof "Enter valid hubot hipchat rooms." fi
 heroku config:add HUBOT_HIPCHAT_ROOMS=$HUBOT_HIPCHAT_ROOMS
 
+# 67748_idlerpg@conf.hipchat.com
 
 # heroku create --stack cedar
 # git push heroku master
 # heroku ps:scale app=1
 
-# export HUBOT_HIPCHAT_JID=$HUBOT_HIPCHAT_JID
-# export HUBOT_HIPCHAT_PASSWORD=$HUBOT_HIPCHAT_PASSWORD
-# export HUBOT_HIPCHAT_ROOMS=$HUBOT_HIPCHAT_ROOMS
+
+
+
+# heroku config --shell | ag '^HUBOT'
 # export HUBOT_LOG_LEVEL=debug
+
+#export HUBOT_HIPCHAT_JID=67748_490479@chat.hipchat.com
+#export HUBOT_HIPCHAT_PASSWORD=helloiamarobot
+#export HUBOT_HIPCHAT_ROOMS=67748_idlerpg@conf.hipchat.com
+
 # bin/hubot -a hipchat
