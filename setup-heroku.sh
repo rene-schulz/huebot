@@ -47,7 +47,7 @@ heroku config:add HUBOT_HIPCHAT_ROOMS=67748_all_nyc@conf.hipchat.com
 
 # Do this to launch on Heroku
 git push heroku master
-heroku ps:scale app=1
+heroku ps:scale web=1
 
 
 
