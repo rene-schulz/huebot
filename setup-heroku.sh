@@ -1,8 +1,5 @@
-function goof() {
-  echo "You done goofed: $1"
-  exit
-}
-
+echo "This is actually more of a doc than a script"
+exit
 
 echo "Creating heroku app..."
 heroku create || goof "Could not create heroku app"
@@ -30,20 +27,40 @@ read -p "Enter hubot hipchat rooms:" HUBOT_HIPCHAT_ROOMS
 if [[ -z $HUBOT_HIPCHAT_ROOMS ]]; then goof "Enter valid hubot hipchat rooms." fi
 heroku config:add HUBOT_HIPCHAT_ROOMS=$HUBOT_HIPCHAT_ROOMS
 
+# IdleRPG
 # 67748_idlerpg@conf.hipchat.com
 
-# heroku create --stack cedar
-# git push heroku master
-# heroku ps:scale app=1
+# NYC OffTopic (ignore the name, I know)
+# 67748_all_nyc@conf.hipchat.com
+
+### Actually running on heroku
+
+# This just needs to be done once
+heroku create --stack cedar
+heroku rename bv-pavel-huebot
+heroku config:add HEROKU_URL=http://bv-pavel-huebot.herokuapp.com/
+heroku addons:add redistogo:nano
+
+heroku config:add HUBOT_HIPCHAT_JID=67748_490479@chat.hipchat.com
+heroku config:add HUBOT_HIPCHAT_PASSWORD=
+heroku config:add HUBOT_HIPCHAT_ROOMS=67748_all_nyc@conf.hipchat.com
+
+# Do this to launch on Heroku
+git push heroku master
+heroku ps:scale web=1
 
 
 
+### For local stuff
 
-# heroku config --shell | ag '^HUBOT'
-# export HUBOT_LOG_LEVEL=debug
+# Read config stuff out
+heroku config --shell | ag '^HUBOT'
 
-#export HUBOT_HIPCHAT_JID=67748_490479@chat.hipchat.com
-#export HUBOT_HIPCHAT_PASSWORD=helloiamarobot
-#export HUBOT_HIPCHAT_ROOMS=67748_idlerpg@conf.hipchat.com
+# Set options for local testing
+export HUBOT_HIPCHAT_JID=67748_490479@chat.hipchat.com
+export HUBOT_HIPCHAT_PASSWORD=
+export HUBOT_HIPCHAT_ROOMS=67748_idlerpg@conf.hipchat.com
 
-# bin/hubot -a hipchat
+# Test locally
+export HUBOT_LOG_LEVEL=debug
+bin/hubot -a hipchat
