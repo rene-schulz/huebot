@@ -61,6 +61,8 @@ export HUBOT_HIPCHAT_JID=67748_490479@chat.hipchat.com
 export HUBOT_HIPCHAT_PASSWORD=
 export HUBOT_HIPCHAT_ROOMS=67748_idlerpg@conf.hipchat.com
 
+export HUBOT_HIPCHAT_ROOMS=67748_bottest@conf.hipchat.com
+
 # Test locally
 export HUBOT_LOG_LEVEL=debug
 bin/hubot -a hipchat
