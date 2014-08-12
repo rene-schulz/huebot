@@ -6,6 +6,17 @@
 # TODO - make sure people can't smarten themselves
 # TODO - detect circlejerks
 
+# BUG - it thinks I'm NaN dumb
+#  Ugh, Pavel Lishin is NaN worth of dumb.
+# BUG - it can't fucking find René
+#     [17:54] Pavel Lishin: @ReneSchulz is dumb
+#     [17:54] Huebot !: Sorry, I don't really know who ReneSchulz is.
+#     [17:54] Pavel Lishin: Rene Schulz is dumb
+#     [17:54] Huebot !: Sorry, I don't really know who Rene Schulz is.
+#     [17:54] Pavel Lishin: René Schulz is dumb
+#     [17:54] Huebot !: Sorry, I don't really know who Schulz is.
+
+
 module.exports = (robot) ->
 
   dumbify = (msg) ->
