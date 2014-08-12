@@ -5,6 +5,7 @@
 
 # TODO - make sure people can't smarten themselves
 # TODO - detect circlejerks
+# TODO - allow score checking - "How smart/dumb is X"
 
 # BUG - it thinks I'm NaN dumb
 #  Ugh, Pavel Lishin is NaN worth of dumb.
