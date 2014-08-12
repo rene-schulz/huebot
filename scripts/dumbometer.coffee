@@ -39,6 +39,22 @@ module.exports = (robot) ->
     else
       msg.send "Sorry, I don't really know who #{name} is."
 
+  show_score = (msg) ->
+    name = msg.match[1].trim()
+    users = robot.brain.usersForFuzzyName(name)
+
+    if users.length is 1
+      user = users[0]
+      dumb = robot.brain.get('dumb') or {}
+      if not user.id in dumb
+        msg.send "I don't know anything about #{user.name}!"
+      else
+        msg.send( folksy_saying( user.name, dumb[user.id], 1) )
+    else if users.length > 1
+      msg.send "Sorry, found #{users.length} people who might be that person."
+    else
+      msg.send "Sorry, I don't really know who #{name} is."
+
   folksy_saying = (username, score, direction) ->
     adjective = "dumb"
     if direction == 1
@@ -107,3 +123,7 @@ module.exports = (robot) ->
 
   robot.hear /@?([\w .\-]+) is dumb/i, dumbify
   robot.hear /@?([\w .\-]+) is smart/i, smarten
+  robot.hear /how smart is @?([\w .\-]+)/i, show_score
+  robot.hear /how dumb is @?([\w .\-]+)/i, show_score
+  robot.hear /is @?([\w .\-]+) smart/i, show_score
+  robot.hear /is @?([\w .\-]+) dumb/i, show_score
