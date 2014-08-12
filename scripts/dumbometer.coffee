@@ -11,6 +11,7 @@
 #  - Shitty Yahoo charts API?
 #  - PNG generation and uploading directly with coffeescript? Is that possible/easy/doable?
 #   -- maybe just a bmp? I think imgur will convert...
+# TODO - score should be per-room.
 
 # BUG - it thinks I'm NaN dumb
 #  Ugh, Pavel Lishin is NaN worth of dumb.
