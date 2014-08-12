@@ -52,34 +52,45 @@ module.exports = (robot) ->
       msg.send "Sorry, I don't really know who #{name} is."
 
   set_dumbness = (user, direction) ->
-    dumbfullness = robot.brain.get('dumbfullness') or {}
-    if not user.id in dumbfullness
-      dumbfullness[user.id] = 0.5
+    dumb = robot.brain.get('dumb') or {}
+    if (not user.id in dumb) or isNaN(dumb[user.id]) or dumb < 0 or dumb > 1
+      robot.logger.debug "Uh-oh, resetting dumbitude to 0.5"
+      dumb[user.id] = 0.5
 
     # Move needle between 5 and 30% one direction or another.
     bonus = .05 + Math.random()/4;
 
     if direction == -1
-      if dumbfullness[user.id] == 0
+      if dumb[user.id] == 0
         throw "Sorry, #{user.name} literally cannot get any dumber."
-      old_dumbfullness = dumbfullness[user.id]
-      new_dumbfullness = Math.max(0, dumbfullness[user.id] - bonus)
-      dumbfullness[user.id] = new_dumbfullness
+      old_dumb = dumb[user.id]
+      new_dumb = Math.max(0, old_dumb - bonus)
+      dumb[user.id] = new_dumb
     else if direction == 1
-      if dumbfullness[user.id] == 1
+      if dumb[user.id] == 1
         throw "Sorry, #{user.name}'s godlike intellect has nowhere to go but down."
-      old_dumbfullness = dumbfullness[user.id]
-      new_dumbfullness = Math.min(1, dumbfullness[user.id] + bonus)
-      dumbfullness[user.id] = new_dumbfullness
+      old_dumb = dumb[user.id]
+      new_dumb = Math.min(1, old_dumb + bonus)
+      dumb[user.id] = new_dumb
 
-    robot.logger.debug("Changing dumbfullness from #{old_dumbfullness} to #{new_dumbfullness}")
+    if isNaN(dumb[user.id])
+      dumb[user.id] = 0.5
+      brain.set('dumb', dumb)
+      throw "User's dumbness was set to NaN! Tried to #{direction} a bonus of #{bonus} to #{old_dumb}, resulting in #{new_dumb}"
 
-    robot.brain.set('dumbfullness', dumbfullness)
+    if dumb[user.id] < 0 or dumb[user.id] > 1
+      dumb[user.id] = 0.5
+      brain.set('dumb', dumb)
+      throw "User's dumbness was set to outside the valid range! Tried to #{direction} a bonus of #{bonus} to #{old_dumb}, resulting in #{new_dumb}"
 
-    return dumbfullness[user.id]
+    robot.logger.debug("Changing dumbfullness from #{old_dumb} to #{new_dumb}")
+
+    robot.brain.set('dumb', dumb)
+
+    return dumb[user.id]
 
   robot.respond /RESET DUMBNESS$/, (msg) ->
-    robot.brain.set('dumbfullness', {})
+    robot.brain.set('dumb', {})
     msg.send "Enjoy the blank slate, idiots."
 
   robot.hear /@?([\w .\-]+) is dumb/i, dumbify
