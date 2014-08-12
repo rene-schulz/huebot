@@ -6,6 +6,11 @@
 # TODO - make sure people can't smarten themselves
 # TODO - detect circlejerks
 # TODO - allow score checking - "How smart/dumb is X"
+# TODO - generate charts.
+#  - ASCII with /code ?
+#  - Shitty Yahoo charts API?
+#  - PNG generation and uploading directly with coffeescript? Is that possible/easy/doable?
+#   -- maybe just a bmp? I think imgur will convert...
 
 # BUG - it thinks I'm NaN dumb
 #  Ugh, Pavel Lishin is NaN worth of dumb.
