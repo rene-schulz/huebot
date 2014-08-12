@@ -2,28 +2,6 @@
 #   keeps track of dumbfulness.
 #
 
-
-# TODO - make sure people can't smarten themselves
-# TODO - detect circlejerks
-# TODO - allow score checking - "How smart/dumb is X"
-# TODO - generate charts.
-#  - ASCII with /code ?
-#  - Shitty Yahoo charts API?
-#  - PNG generation and uploading directly with coffeescript? Is that possible/easy/doable?
-#   -- maybe just a bmp? I think imgur will convert...
-# TODO - score should be per-room.
-
-# BUG - it thinks I'm NaN dumb
-#  Ugh, Pavel Lishin is NaN worth of dumb.
-# BUG - it can't fucking find René
-#     [17:54] Pavel Lishin: @ReneSchulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who ReneSchulz is.
-#     [17:54] Pavel Lishin: Rene Schulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who Rene Schulz is.
-#     [17:54] Pavel Lishin: René Schulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who Schulz is.
-
-
 module.exports = (robot) ->
 
   dumbify = (msg) ->
