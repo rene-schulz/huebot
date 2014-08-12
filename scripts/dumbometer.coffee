@@ -2,22 +2,10 @@
 #   keeps track of dumbfulness.
 #
 
-
-# TODO - make sure people can't smarten themselves
-# TODO - detect circlejerks
-
-# BUG - it thinks I'm NaN dumb
-#  Ugh, Pavel Lishin is NaN worth of dumb.
-# BUG - it can't fucking find René
-#     [17:54] Pavel Lishin: @ReneSchulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who ReneSchulz is.
-#     [17:54] Pavel Lishin: Rene Schulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who Rene Schulz is.
-#     [17:54] Pavel Lishin: René Schulz is dumb
-#     [17:54] Huebot !: Sorry, I don't really know who Schulz is.
-
-
 module.exports = (robot) ->
+
+  round = (number, places) ->
+    return Math.round( number * Math.pow(10, places)) / Math.pow(10, places)
 
   dumbify = (msg) ->
     name = msg.match[1].trim()
@@ -26,8 +14,8 @@ module.exports = (robot) ->
     if users.length is 1
       user = users[0]
       try
-        new_dumbness = set_dumbness(user, -1).toFixed(2)
-        msg.send "Ugh, #{user.name} is #{new_dumbness} worth of dumb."
+        new_dumbness = set_dumbness(user, -1)
+        msg.send( folksy_saying( user.name, new_dumbness, -1) )
       catch error
         msg.send "Uh-oh: #{error}"
     else if users.length > 1
@@ -42,14 +30,36 @@ module.exports = (robot) ->
     if users.length is 1
       user = users[0]
       try
-        new_dumbness = set_dumbness(user, 1).toFixed(2)
-        msg.send "Wow, #{user.name} is #{new_dumbness} worth of genius!"
+        new_dumbness = set_dumbness(user, 1)
+        msg.send( folksy_saying( user.name, new_dumbness, 1) )
       catch error
         msg.send "Uh-oh: #{error}"
     else if users.length > 1
       msg.send "Sorry, you have to be more specific which of #{users.length} geniuses you mean."
     else
       msg.send "Sorry, I don't really know who #{name} is."
+
+  folksy_saying = (username, score, direction) ->
+    adjective = "dumb"
+    if direction == 1
+      adjective = "smart"
+
+    sayings = [
+      "#{username} is as #{adjective} as #{round(score, 1)} cows",
+      "#{username} has #{score} kiloheaps of #{adjective}",
+      "#{username} is #{score} worth of #{adjective}",
+    ]
+
+    if direction == -1
+      sayings.push("#{username} is dumber than a sack of #{round(score*100, 0)} hammers")
+      sayings.push("#{username} is so dumb, someone sent him out for headlight fluid, and he brought back #{round(score*100, 0)} cans")
+    if direction == 1
+      sayings.push("#{username} is smarter than #{round(score*10, 0)} Einsteins")
+      sayings.push("#{username} is has, like, #{round(score*10, 0)} brains")
+      sayings.push("#{username} has the wit of #{round(score*10, 0)} Jesses")
+      sayings.push("#{username} is so smart, he's beaten Brian's high score in every board game #{round(score*10, 0)} times")
+
+    return sayings[ Math.floor(Math.random() * sayings.length) ] + " (Score: #{score})"
 
   set_dumbness = (user, direction) ->
     dumb = robot.brain.get('dumb') or {}
@@ -77,6 +87,8 @@ module.exports = (robot) ->
       dumb[user.id] = 0.5
       brain.set('dumb', dumb)
       throw "User's dumbness was set to NaN! Tried to #{direction} a bonus of #{bonus} to #{old_dumb}, resulting in #{new_dumb}"
+
+    dumb[user.id] = round(dumb[user.id], 2)
 
     if dumb[user.id] < 0 or dumb[user.id] > 1
       dumb[user.id] = 0.5
