@@ -4,6 +4,11 @@
 
 module.exports = (robot) ->
 
+  Array::unique = ->
+    output = {}
+    output[@[key]] = @[key] for key in [0...@length]
+    value for key, value of output
+
   random = (items) ->
     return items[ Math.floor(Math.random() * items.length) ]
 
@@ -36,14 +41,39 @@ module.exports = (robot) ->
     # A better search than usersForFuzzyName
     # Throws error if a single user cannot be found.
 
-    # Strongly prefers the user that's in the same room as msg
+    possible_matches = []
 
-    # Uh, to be implemented later :)
+    # Check for the mention name first - this is guaranteed unique by Hipchat.
+    users = for userid, userobj of robot.brain.users() when userobj.mention_name is name
+      userobj
+    if users.length is 1
+      return users[0]
+    else if users.length > 1
+      throw "Impossible! More than one user with the mention_name #{name}"
+    else
+      # If we're searching for @Pavel, and there's a @PavelLishin and a @PavelPushkin,
+      # we want to save these two results as possible recommendations.
+      users = for userid, userobj of robot.brain.users() when userobj.mention_name.toLowerCase().lastIndexOf(name.toLowerCase(), 0) is 0
+        userobj
+      possible_matches = possible_matches.concat users
+
+    # Let's check their name
     users = robot.brain.usersForFuzzyName(name)
-    if users.length != 1
-      throw "#{users.length} were found."
+    robot.logger.debug("Found fuzzy users:", users)
+    if users.length == 1
+      return users[0]
+    if users.length > 1
+      possible_matches = possible_matches.concat users
+      robot.logger.debug("Multiple fuzzy users, result is ", possible_matches)
 
-    return users[0]
+    # Let's see who's in the room.
+    # WELL, SHIT, HUBOT/HIPCHAT DON'T SUPPORT THAT
+    # LOOKS LIKE I'LL HAVE TO FUCKING CALL THE API
+
+    matches = for own userid, userobj of possible_matches
+      "#{userobj.name} (@#{userobj.mention_name})"
+
+    throw "Unable to find a user for '#{name}'. Did you mean:\n#{matches.unique().join('\n')}"
 
   get_score_bonus = () ->
     return .05 + Math.random()/4;
@@ -78,17 +108,11 @@ module.exports = (robot) ->
     try
       user = find_single_user(name, msg)
       score = get_score(user.id)
-
-      robot.logger.debug(user)
-      robot.logger.debug(user.name)
-
       msg.send( folksy_saying( user.name, get_score(user.id), "score" ) )
     catch error
       msg.send "Sorry: #{error}"
 
   folksy_saying = (username, score, action) ->
-    robot.logger.debug(username)
-    
     if action == "score"
       adjective = (score < 0.5 and "dumb") or "smart"
     else
@@ -114,10 +138,12 @@ module.exports = (robot) ->
     robot.brain.set('dumb', {})
     msg.send "Enjoy the blank slate, idiots."
 
-  robot.hear /@?([\w .\-]+) is dumb/i, dumbify
-  robot.hear /@?([\w .\-]+) is smart/i, smarten
+  # [\u00E0-\u00FC] - matches accented characters, as in René
 
-  robot.hear /how smart is @?([\w .\-]+)/i, show_score
-  robot.hear /how dumb is @?([\w .\-]+)/i, show_score
-  robot.hear /is @?([\w .\-]+) smart/i, show_score
-  robot.hear /is @?([\w .\-]+) dumb/i, show_score
+  robot.hear /@?([\w .\-\u00E0-\u00FC]+) is dumb/i, dumbify
+  robot.hear /@?([\w .\-\u00E0-\u00FC]+) is smart/i, smarten
+
+  robot.hear /how smart is @?([\w .\-\u00E0-\u00FC]+)/i, show_score
+  robot.hear /how dumb is @?([\w .\-\u00E0-\u00FC]+)/i, show_score
+  robot.hear /is @?([\w .\-\u00E0-\u00FC]+) smart/i, show_score
+  robot.hear /is @?([\w .\-\u00E0-\u00FC]+) dumb/i, show_score
