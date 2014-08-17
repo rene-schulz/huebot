@@ -4,126 +4,146 @@
 
 module.exports = (robot) ->
 
+  Array::unique = ->
+    output = {}
+    output[@[key]] = @[key] for key in [0...@length]
+    value for key, value of output
+
+  random = (items) ->
+    return items[ Math.floor(Math.random() * items.length) ]
+
   round = (number, places) ->
     return Math.round( number * Math.pow(10, places)) / Math.pow(10, places)
 
+  get_score = (userid) ->
+    scores = robot.brain.get('dumb') or {}
+    if not userid in scores or typeof(scores[userid]) == "undefined" or scores[userid] == null or isNaN(scores[userid])
+      robot.logger.debug("Invalid score detected in database: #{scores[userid]}")
+      return 0.5
+    if scores[userid] < 0
+      return 0
+    if scores[userid] > 1
+      return 1
+    return parseFloat(scores[userid])
+
+  set_score = (userid, score) ->
+    if typeof(score) == "undefined" or score == null or isNaN(score)
+      throw "Can't set a score of #{score} for #{userid}"
+    if score < 0
+      score = 0
+    if score > 1
+      score = 1
+    scores = robot.brain.get('dumb') or {}
+    scores[userid] = round(score, 3)
+    robot.brain.set('dumb', scores)
+
+  find_single_user = (name, msg) ->
+    # A better search than usersForFuzzyName
+    # Throws error if a single user cannot be found.
+
+    possible_matches = []
+
+    # Check for the mention name first - this is guaranteed unique by Hipchat.
+    users = for userid, userobj of robot.brain.users() when userobj.mention_name is name
+      userobj
+    if users.length is 1
+      return users[0]
+    else if users.length > 1
+      throw "Impossible! More than one user with the mention_name #{name}"
+    else
+      # If we're searching for @Pavel, and there's a @PavelLishin and a @PavelPushkin,
+      # we want to save these two results as possible recommendations.
+      users = for userid, userobj of robot.brain.users() when userobj.mention_name.toLowerCase().lastIndexOf(name.toLowerCase(), 0) is 0
+        userobj
+      possible_matches = possible_matches.concat users
+
+    # Let's check their name
+    users = robot.brain.usersForFuzzyName(name)
+    robot.logger.debug("Found fuzzy users:", users)
+    if users.length == 1
+      return users[0]
+    if users.length > 1
+      possible_matches = possible_matches.concat users
+      robot.logger.debug("Multiple fuzzy users, result is ", possible_matches)
+
+    # Let's see who's in the room.
+    # WELL, SHIT, HUBOT/HIPCHAT DON'T SUPPORT THAT
+    # LOOKS LIKE I'LL HAVE TO FUCKING CALL THE API
+
+    matches = for own userid, userobj of possible_matches
+      "#{userobj.name} (@#{userobj.mention_name})"
+
+    throw "Unable to find a user for '#{name}'. Did you mean:\n#{matches.unique().join('\n')}"
+
+  get_score_bonus = () ->
+    return .05 + Math.random()/4;
+
   dumbify = (msg) ->
     name = msg.match[1].trim()
-    users = robot.brain.usersForFuzzyName(name)
-  
-    if users.length is 1
-      user = users[0]
-      try
-        new_dumbness = set_dumbness(user, -1)
-        msg.send( folksy_saying( user.name, new_dumbness, -1) )
-      catch error
-        msg.send "Uh-oh: #{error}"
-    else if users.length > 1
-      msg.send "Sorry, you have to be more specific which of #{users.length} dummies you mean."
-    else
-      msg.send "Sorry, I don't really know who #{name} is."
+    try
+      user = find_single_user(name, msg)
+      score = get_score(user.id)
+      if score == 0
+        throw "#{user.name} is as dumb as they can get."
+      set_score(user.id, score - get_score_bonus())
+      msg.send( folksy_saying( user.name, get_score(user.id), "dumb" ) )
+    catch error
+      msg.send "Sorry: #{error}"
 
   smarten = (msg) ->
     name = msg.match[1].trim()
-    users = robot.brain.usersForFuzzyName(name)
-  
-    if users.length is 1
-      user = users[0]
-      try
-        new_dumbness = set_dumbness(user, 1)
-        msg.send( folksy_saying( user.name, new_dumbness, 1) )
-      catch error
-        msg.send "Uh-oh: #{error}"
-    else if users.length > 1
-      msg.send "Sorry, you have to be more specific which of #{users.length} geniuses you mean."
-    else
-      msg.send "Sorry, I don't really know who #{name} is."
+    try
+      user = find_single_user(name, msg)
+      score = get_score(user.id)
+      if score == 1
+        throw "#{user.name} is as smart as they can get."
+      set_score(user.id, score + get_score_bonus())
+      msg.send( folksy_saying( user.name, get_score(user.id), "smart" ) )
+    catch error
+      msg.send "Sorry: #{error}"
+
 
   show_score = (msg) ->
     name = msg.match[1].trim()
-    users = robot.brain.usersForFuzzyName(name)
+    try
+      user = find_single_user(name, msg)
+      score = get_score(user.id)
+      msg.send( folksy_saying( user.name, get_score(user.id), "score" ) )
+    catch error
+      msg.send "Sorry: #{error}"
 
-    if users.length is 1
-      user = users[0]
-      dumb = robot.brain.get('dumb') or {}
-      if not user.id in dumb
-        msg.send "I don't know anything about #{user.name}!"
-      else
-        msg.send( folksy_saying( user.name, dumb[user.id], 1) )
-    else if users.length > 1
-      msg.send "Sorry, found #{users.length} people who might be that person."
+  folksy_saying = (username, score, action) ->
+    if action == "score"
+      adjective = (score < 0.5 and "dumb") or "smart"
     else
-      msg.send "Sorry, I don't really know who #{name} is."
-
-  folksy_saying = (username, score, direction) ->
-    adjective = "dumb"
-    if direction == 1
-      adjective = "smart"
+      adjective = action
 
     sayings = [
-      "#{username} is as #{adjective} as #{round(score, 1)} cows",
+      "#{username} is as #{adjective} as #{round(score*10, 1)} cows",
       "#{username} has #{score} kiloheaps of #{adjective}",
       "#{username} is #{score} worth of #{adjective}",
     ]
 
-    if direction == -1
+    if action == "dumb" or (action == "score" and score < 0.5)
       sayings.push("#{username} is dumber than a sack of #{round(score*100, 0)} hammers")
-      sayings.push("#{username} is so dumb, someone sent him out for headlight fluid, and he brought back #{round(score*100, 0)} cans")
-    if direction == 1
+      sayings.push("#{username} is so dumb, someone sent him out for headlight fluid, and he brought back #{round(score*10, 0)} cans")
+    if action == "smart" or (action == "score" and score >= 0.5)
       sayings.push("#{username} is smarter than #{round(score*10, 0)} Einsteins")
       sayings.push("#{username} is has, like, #{round(score*10, 0)} brains")
-      sayings.push("#{username} has the wit of #{round(score*10, 0)} Jesses")
-      sayings.push("#{username} is so smart, he's beaten Brian's high score in every board game #{round(score*10, 0)} times")
 
-    return sayings[ Math.floor(Math.random() * sayings.length) ] + " (Score: #{score})"
+    return random(sayings) + " (Score: #{score})"
 
-  set_dumbness = (user, direction) ->
-    dumb = robot.brain.get('dumb') or {}
-    if (not user.id in dumb) or isNaN(dumb[user.id]) or dumb < 0 or dumb > 1
-      robot.logger.debug "Uh-oh, resetting dumbitude to 0.5"
-      dumb[user.id] = 0.5
 
-    # Move needle between 5 and 30% one direction or another.
-    bonus = .05 + Math.random()/4;
-
-    if direction == -1
-      if dumb[user.id] == 0
-        throw "Sorry, #{user.name} literally cannot get any dumber."
-      old_dumb = dumb[user.id]
-      new_dumb = Math.max(0, old_dumb - bonus)
-      dumb[user.id] = new_dumb
-    else if direction == 1
-      if dumb[user.id] == 1
-        throw "Sorry, #{user.name}'s godlike intellect has nowhere to go but down."
-      old_dumb = dumb[user.id]
-      new_dumb = Math.min(1, old_dumb + bonus)
-      dumb[user.id] = new_dumb
-
-    if isNaN(dumb[user.id])
-      dumb[user.id] = 0.5
-      brain.set('dumb', dumb)
-      throw "User's dumbness was set to NaN! Tried to #{direction} a bonus of #{bonus} to #{old_dumb}, resulting in #{new_dumb}"
-
-    dumb[user.id] = round(dumb[user.id], 2)
-
-    if dumb[user.id] < 0 or dumb[user.id] > 1
-      dumb[user.id] = 0.5
-      brain.set('dumb', dumb)
-      throw "User's dumbness was set to outside the valid range! Tried to #{direction} a bonus of #{bonus} to #{old_dumb}, resulting in #{new_dumb}"
-
-    robot.logger.debug("Changing dumbfullness from #{old_dumb} to #{new_dumb}")
-
-    robot.brain.set('dumb', dumb)
-
-    return dumb[user.id]
-
-  robot.respond /RESET DUMBNESS$/, (msg) ->
+  robot.respond /.*RESET DUMBNESS.*/i, (msg) ->
     robot.brain.set('dumb', {})
     msg.send "Enjoy the blank slate, idiots."
 
-  robot.hear /@?([\w .\-]+) is dumb/i, dumbify
-  robot.hear /@?([\w .\-]+) is smart/i, smarten
-  robot.hear /how smart is @?([\w .\-]+)/i, show_score
-  robot.hear /how dumb is @?([\w .\-]+)/i, show_score
-  robot.hear /is @?([\w .\-]+) smart/i, show_score
-  robot.hear /is @?([\w .\-]+) dumb/i, show_score
+  # [\u00E0-\u00FC] - matches accented characters, as in René
+
+  robot.hear /@?([\w .\-\u00E0-\u00FC]+) is dumb/i, dumbify
+  robot.hear /@?([\w .\-\u00E0-\u00FC]+) is smart/i, smarten
+
+  robot.hear /how smart is @?([\w .\-\u00E0-\u00FC]+)/i, show_score
+  robot.hear /how dumb is @?([\w .\-\u00E0-\u00FC]+)/i, show_score
+  robot.hear /is @?([\w .\-\u00E0-\u00FC]+) smart/i, show_score
+  robot.hear /is @?([\w .\-\u00E0-\u00FC]+) dumb/i, show_score
